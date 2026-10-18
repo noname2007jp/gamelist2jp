@@ -90,6 +90,20 @@ def thegamesdb_lookup(name, api_key):
         return None
     return None
 
+def app_directory():
+    # In a PyInstaller EXE, use the directory containing the EXE.
+    # When running from source, use the directory containing main.py.
+    if getattr(__import__("sys"), "frozen", False):
+        return Path(__import__("sys").executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+def read_api_key_file():
+    key_file = app_directory() / "api.key"
+    try:
+        return key_file.read_text(encoding="utf-8-sig").strip()
+    except (OSError, UnicodeError):
+        return ""
+
 def resolve_xml_path(base, value):
     value = (value or "").strip()
     if not value:
@@ -107,7 +121,9 @@ class App(tk.Tk):
         self.minsize(980, 600)
         self.source = tk.StringVar()
         self.output = tk.StringVar()
-        self.api_key = tk.StringVar()
+        # Load api.key into the field as a convenience. The user can override it
+        # by entering another key; a blank field falls back to api.key at scan time.
+        self.api_key = tk.StringVar(value=read_api_key_file())
         self.status = tk.StringVar(value="親フォルダを選択してください。")
         self.rows = []
         self.filter_vars = {
@@ -126,7 +142,7 @@ class App(tk.Tk):
         ttk.Label(root, text="出力先（jproms）").grid(row=2, column=0, sticky="w", pady=(10, 0))
         ttk.Entry(root, textvariable=self.output).grid(row=3, column=0, sticky="ew", padx=(0, 8))
         ttk.Button(root, text="参照...", command=self.pick_output).grid(row=3, column=1)
-        ttk.Label(root, text="TheGamesDB APIキー（任意・照合情報用）").grid(row=4, column=0, sticky="w", pady=(10, 0))
+        ttk.Label(root, text="TheGamesDB APIキー（入力欄または実行ファイルと同じ場所の api.key）").grid(row=4, column=0, sticky="w", pady=(10, 0))
         ttk.Entry(root, textvariable=self.api_key, show="•").grid(row=5, column=0, sticky="ew", padx=(0, 8))
         ttk.Button(root, text="APIキー取得ページ", command=lambda: webbrowser.open("https://thegamesdb.net/")).grid(row=5, column=1)
         bar = ttk.Frame(root)
@@ -173,7 +189,7 @@ class App(tk.Tk):
         self.rows = []
         self.tree.delete(*self.tree.get_children())
         self.status.set("スキャン中...")
-        threading.Thread(target=self.scan_worker, args=(src, self.api_key.get().strip()), daemon=True).start()
+        api_key = self.api_key.get().strip() or read_api_key_file()\n        threading.Thread(target=self.scan_worker, args=(src, api_key), daemon=True).start()
 
     def scan_worker(self, src, api_key):
         found = []
