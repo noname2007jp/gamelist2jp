@@ -177,6 +177,9 @@ class App(tk.Tk):
 
     def scan_worker(self, src, api_key):
         found = []
+        entries = []
+        # First parse the XML files and count valid game entries so progress can show N/N.
+        xml_files = []
         for xml in src.rglob("gamelist.xml"):
             platform = xml.parent.name
             if platform.lower() not in PLATFORMS:
@@ -185,25 +188,35 @@ class App(tk.Tk):
                 xml_root = ET.parse(xml).getroot()
             except Exception:
                 continue
+            xml_files.append((xml, platform, xml_root))
             for game in xml_root.findall("game"):
                 rel = text_of(game, "path")
                 rom = resolve_xml_path(xml.parent, rel)
-                if rom is None:
-                    continue
-                title = localized_title(game, rom)
-                zh = text_of(game, "zh_CN")
-                en = text_of(game, "en_US")
-                state, reason = classify(game, rom.name, rom)
-                dbinfo = ""
-                # DB results are supplementary only; classification never relies on an unverified match.
-                info = thegamesdb_lookup(title, api_key) if api_key else None
-                if info:
-                    dbinfo = "候補: " + (info[0] or title)
-                    if info[1]:
-                        dbinfo += " / " + info[1]
-                found.append({"xml": xml, "game": game, "platform": platform, "title": title,
-                              "zh_CN": zh, "en_US": en, "rom": rom, "rel": rel,
-                              "image": text_of(game, "image"), "status": state, "reason": reason, "db": dbinfo})
+                if rom is not None:
+                    entries.append((xml, platform, game, rel, rom))
+
+        total = len(entries)
+        self.after(0, lambda total=total: self.status.set(f"スキャン準備完了：対象 {total} 件"))
+        for index, (xml, platform, game, rel, rom) in enumerate(entries, start=1):
+            # Update the visible status for every ROM, including while waiting on a DB request.
+            self.after(0, lambda i=index, n=total, filename=rom.name:
+                       self.status.set(f"スキャン中：{i}/{n} {filename}"))
+            title = localized_title(game, rom)
+            zh = text_of(game, "zh_CN")
+            en = text_of(game, "en_US")
+            state, reason = classify(game, rom.name, rom)
+            dbinfo = ""
+            # Only uncertain titles need an external lookup; clear Japan/non-Japan cases skip the API.
+            info = thegamesdb_lookup(title, api_key) if api_key and state == "要確認" else None
+            if state == "要確認" and api_key:
+                dbinfo = "DB検索済み（候補なし）"
+            if info:
+                dbinfo = "候補: " + (info[0] or title)
+                if info[1]:
+                    dbinfo += " / " + info[1]
+            found.append({"xml": xml, "game": game, "platform": platform, "title": title,
+                          "zh_CN": zh, "en_US": en, "rom": rom, "rel": rel,
+                          "image": text_of(game, "image"), "status": state, "reason": reason, "db": dbinfo})
         self.after(0, lambda: self.show_results(found))
 
     def show_results(self, found):
