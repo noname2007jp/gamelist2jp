@@ -274,6 +274,11 @@ class App(tk.Tk):
                 if path_el is None:
                     path_el = ET.SubElement(game, "path")
                 path_el.text = "./" + target.name
+                # Normalize the output display name using localized title metadata.
+                name_el = game.find("name")
+                if name_el is None:
+                    name_el = ET.SubElement(game, "name")
+                name_el.text = r["title"]
                 image_rel = r["image"]
                 if image_rel:
                     source_img = resolve_xml_path(r["xml"].parent, image_rel)
