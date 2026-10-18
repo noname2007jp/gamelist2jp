@@ -189,7 +189,8 @@ class App(tk.Tk):
         self.rows = []
         self.tree.delete(*self.tree.get_children())
         self.status.set("スキャン中...")
-        api_key = self.api_key.get().strip() or read_api_key_file()\n        threading.Thread(target=self.scan_worker, args=(src, api_key), daemon=True).start()
+        api_key = self.api_key.get().strip() or read_api_key_file()
+        threading.Thread(target=self.scan_worker, args=(src, api_key), daemon=True).start()
 
     def scan_worker(self, src, api_key):
         found = []
