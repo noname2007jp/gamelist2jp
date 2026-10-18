@@ -234,17 +234,25 @@ class App(tk.Tk):
             found.append({"xml": xml, "game": game, "platform": platform, "title": title,
                           "zh_CN": zh, "en_US": en, "rom": rom, "rel": rel,
                           "image": text_of(game, "image"), "status": state, "reason": reason, "db": dbinfo})
-        self.after(0, lambda: self.show_results(found))
+            # Add completed results progressively; update the GUI in small batches.
+            if len(found) >= 25:
+                batch, found = found, []
+                self.after(0, self.add_results_batch, batch)
+        if found:
+            self.after(0, self.add_results_batch, found)
+        self.after(0, self.finish_scan, total)
 
-    def show_results(self, found):
-        self.rows = found
-        self.apply_filters()
-        counts = {s: sum(r["status"] == s for r in found) for s in self.filter_vars}
-        self.status.set(f"完了：{len(found)}件 / 日本 {counts['日本']}件 / 要確認 {counts['要確認']}件 / 対象外 {counts['対象外']}件")
-        if not found:
+    def add_results_batch(self, batch):
+        self.rows.extend(batch)
+        self.apply_filters(update_status=False)
+
+    def finish_scan(self, total):
+        counts = {s: sum(r["status"] == s for r in self.rows) for s in self.filter_vars}
+        self.status.set(f"完了：{len(self.rows)}/{total}件 / 日本 {counts['日本']}件 / 要確認 {counts['要確認']}件 / 対象外 {counts['対象外']}件")
+        if not self.rows:
             messagebox.showinfo("結果", "対象機種の gamelist.xml が見つかりませんでした。")
 
-    def apply_filters(self):
+    def apply_filters(self, update_status=True):
         self.tree.delete(*self.tree.get_children())
         visible = 0
         for i, r in enumerate(self.rows):
@@ -252,7 +260,7 @@ class App(tk.Tk):
                 continue
             self.tree.insert("", "end", iid=str(i), values=(r["platform"], r["title"], r["zh_CN"], r["en_US"], r["rom"].name, r["status"], r["reason"], r["db"]))
             visible += 1
-        if hasattr(self, "status") and self.rows:
+        if update_status and hasattr(self, "status") and self.rows:
             counts = {s: sum(r["status"] == s for r in self.rows) for s in self.filter_vars}
             self.status.set(f"全{len(self.rows)}件 / 表示 {visible}件 / 日本 {counts['日本']}件 / 要確認 {counts['要確認']}件 / 対象外 {counts['対象外']}件")
 
